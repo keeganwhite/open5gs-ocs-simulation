@@ -24,9 +24,8 @@ docker run -dti -h ocs.open5gs.local -v db:/home/otp/db -p 8080:8080/tcp \
 
 SigScale OCS to handle:
 
-1. Authentication (S6a interface): MME talks to HSS (OCS in this case).
-2. Policy Control (Gx interface): SMF talks to PCRF (OCS in this case).
-3. Online Charging (Gy interface): SMF talks to OCS.
+1. Online Charging (Gy interface): SMF talks to OCS.
+2. Test with UERANSIM.
 
 ## Open5GS Configuration
 
