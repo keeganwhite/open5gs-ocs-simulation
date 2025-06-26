@@ -1,86 +1,53 @@
-# SigScale OCS, UERANUERANSIM SIM and Open5GS Integration
+# Virtualized Open5GS Network with External Accounting Integration
 
-Integration of SigScale OCS with Openg5GS and UERANSIM
+This repository provides resources and documentation for setting up a **virtualized Open5GS network** and linking it to an **external accounting system** (such as SigScale OCS). The primary focus is on 4G (EPC) integration, leveraging open-source tools to create a complete, testable LTE core and radio access network in a virtualized environment.
 
-## OCS Setup
+## Why 4G (EPC) and Not 5G?
 
-Run it with docker:
+Attempts to integrate external online charging (OCS) with 5G (using UERANSIM and Open5GS 5GC) were unsuccessful. The likely reason is architectural:
 
-```
-docker pull sigscale/ocs
-docker run -ti --entrypoint bash -h ocs.open5gs.local -v db:/home/otp/db sigscale/ocs
-bin/initialize
-exit
-docker run -dti -h ocs.open5gs.local -v db:/home/otp/db -p 8080:8080/tcp \
-         -p 1812:1812/udp -p 1813:1813/udp -p 3868:3868/tcp \
-         -p 4161:4161/udp sigscale/ocs
-```
+- **OCS is a component of the 4G EPC architecture** (Gy interface for online charging).
+- **5G uses a different charging architecture (CCS)**, and support for this in Open5GS is either incomplete or not yet implemented.
+- **UERANSIM is a 5G simulator** and does not natively support 4G/EPC charging flows.
 
-## Open5GS Setup
+**Recommendation:** Use a 4G setup with srsRAN's eNodeB (eNB) and User Equipment (UE) to connect to Open5GS's MME and EPC. This enables full OCS integration and online charging.
 
-1. Follow instructions [here](https://open5gs.org/open5gs/docs/guide/01-quickstart/).
+## Components Used
 
-## Goals/Outcomes
+- **Open5GS**: Open-source EPC (Evolved Packet Core) for LTE/4G.
+- **SigScale OCS**: External Online Charging System for real-time credit control.
+- **srsRAN 4G**: Open-source LTE radio suite (eNB and UE) for simulating RAN and UEs. See [srsRAN 4G Documentation](https://docs.srsran.com/projects/4g/en/latest/).
+- **UERANSIM**: Used for 5G testing, but not compatible with 4G OCS flows.
 
-SigScale OCS to handle:
+## What This Repo Provides
 
-1. Online Charging (Gy interface): SMF talks to OCS.
-2. Test with UERANSIM.
+- **Step-by-step guides** for setting up Open5GS, SigScale OCS, and srsRAN 4G.
+- **Configuration examples** for all components.
+- **Debugging and validation tips** (e.g., using Wireshark/tcpdump to inspect Diameter Gy traffic).
+- **Troubleshooting advice** for common issues.
 
-## Open5GS Configuration
+## Directory Structure
 
-1. In /etc/freeDiameter/smf.conf add a line like this:
+- `4G/` — Guides and configs for 4G/EPC integration (recommended approach).
+- `5G/` — Notes and configs for 5G attempts (not recommended for OCS integration).
 
-```
-ConnectPeer = "ocs.open5gs.local" { ConnectTo = "10.10.10.2"; Port = 3868; No_TLS; };
-```
+## Getting Started
 
-2. In smf.yaml enable the ctf (Charging Trigger Function):
+1. **5G**: I got the diameter protocol communication to start but could not get the accounting packets to be communicated. To get to this point follow the instructions in `5G/README.md`.
+2. **4G Recommended**: follow the instructions in `4G/README.md`.
 
-```
-ctf: enabled: yes # auto(default)|yes|no
-```
+## Debugging & Validation
 
-## OCS Configuration
+- **Wireshark/tcpdump**: Capture and analyze Diameter Gy traffic (see `5G/wireshark.md`).
+- **Logs**: Check Open5GS and OCS logs for connection and charging events.
+- **srsRAN tools**: Use srsRAN's logging and debugging features to monitor eNB/UE behavior.
 
-1. docker exec -u 0 -it busy_dirac bash
-2. apt update && apt install -y nano
-3. Edit releases/ocs-3.4.36/sys.config:
+## References
 
-```
-{acct,
-             [
-              % Listen on all interfaces within the container on port 3868
-              {{0,0,0,0}, 3868,
-                  [
-                   {'Origin-Host', "ocs.open5gs.local"},
-                   {'Origin-Realm', "open5gs.local"},
-                   {sub_id_type, [imsi]} % Match subscribers by IMSI
-                  ]
-              }
-             ]
-         },
-```
+- [srsRAN 4G Documentation](https://docs.srsran.com/projects/4g/en/latest/)
+- [Open5GS Documentation](https://open5gs.org/open5gs/docs/)
+- [SigScale OCS](https://hub.docker.com/r/sigscale/ocs)
 
-4. This will not work until you add your client to the clients page on the UI. You can find the details to add by looking at your OCS logs and finding a line that looks like this:
+---
 
-```
-=INFO REPORT==== 27-May-2025::08:16:03.594648 ===
-    "DIAMETER peer address not found in client table"
-    service: {ocs_diameter_acct_service,{0,0,0,0},3868}
-    result: 3010
-    peer: smf.localdomain
-    addresses: [{127,0,0,4}]
-```
-
-This means you should add a diameter client with the address of 127.0.0.4. After doing this you should see the following in the logs:
-
-```
-=INFO REPORT==== 27-May-2025::08:16:53.859440 ===
-    "DIAMETER peer connection state changed"
-    service: {ocs_diameter_acct_service,{0,0,0,0},3868}
-    event: up
-    peer: smf.localdomain
-```
-
-5. Add a subscriber to OCS with the IMSI, Subscriber Key (K) and Operator Key (OPc). Add credit.
+**Note:** This repository is a living document. Contributions and improvements are welcome, especially for new developments in 5G charging support in Open5GS.
