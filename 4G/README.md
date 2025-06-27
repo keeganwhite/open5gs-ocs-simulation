@@ -50,6 +50,7 @@ Edit the `.env` file in the root of the repo. Set at least:
 - `MCC` and `MNC` (match your SIM/UE)
 - `DOCKER_HOST_IP` (the IP address of your Docker host)
 - `UE_IPV4_INTERNET` (the IP range for UEs, e.g., `10.45.0.0/16`)
+- Set the user equiptment variables as well, these are `UE1_IMSI`, `UE1_KI` and `UE1_OP`.
 
 Example:
 
@@ -58,6 +59,16 @@ MCC=001
 MNC=01
 DOCKER_HOST_IP=10.10.10.2
 UE_IPV4_INTERNET=10.45.0.0/16
+
+...
+
+
+UE1_IMEI=356938035643803
+UE1_IMEISV=4370816125816151
+UE1_IMSI=001011234567895
+UE1_KI=465B5CE8B199B49FAA5F0A2EE238A6BC
+UE1_OP=E8ED289DEBA952E4283B54E88E6183CA
+UE1_AMF=8000
 ```
 
 ---
@@ -80,13 +91,7 @@ Open the WebUI at [http://<DOCKER_HOST_IP>:9999](http://<DOCKER_HOST_IP>:9999)
 - Username: `admin`
 - Password: `1423`
 
-Add a subscriber with your IMSI, key, and OPc (matching your srsRAN UE config).
-
-Or, via CLI:
-
-```sh
-docker exec -it hss misc/db/open5gs-dbctl add <IMSI> <KEY> <OPC>
-```
+Add a subscriber with your IMSI, key, and OP (matching your srsRAN UE config). Ensure on the UI you set the the USIM Type to OP for this to work for 4G LTE.
 
 ---
 
@@ -107,10 +112,6 @@ You can use the provided Docker Compose files for srsRAN eNB and UE simulation *
 
 **Note:**
 
-- Edit the `srsenb_zmq.yaml` and `srsue_zmq.yaml` files if you need to change IPs, MCC, MNC, or other parameters.
-- For multi-host setups, see the repo's README for network configuration tips.
-- **No physical SDR or radio hardware is required.**
-
 ---
 
 ## 8. Validate the Setup
@@ -121,7 +122,22 @@ You can use the provided Docker Compose files for srsRAN eNB and UE simulation *
 
 ---
 
-## 9. Stopping and Cleaning Up
+## 9. Test Internet Access from UE
+
+- Ping `8.8.8.8` and `google.com` from the UE: `docker exec -it srsue_zmq sh`.
+- You may need to run the following on your host device for this to work:
+
+```
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo sysctl -w net.ipv6.conf.all.forwarding=1
+sudo iptables -t nat -A POSTROUTING -s 10.100.0.0/16 ! -o ogstun -j MASQUERADE
+sudo iptables -I INPUT -i ogstun -j ACCEPT
+sudo ufw disable
+```
+
+**Note**: `10.100.0.0/16` is your UE IP Address Range.
+
+## 10. Stopping and Cleaning Up
 
 To stop the network:
 
@@ -138,10 +154,10 @@ docker compose -f srsue_zmq.yaml down
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 - If the UE does not attach, check the logs for MME, HSS, eNB, and UE.
-- Ensure the IMSI, key, and OPc match between the HSS and UE config.
+- Ensure the IMSI, key, and OP match between the HSS and UE config.
 - For ZMQ simulation, ensure ports are not blocked by a firewall.
 - For more, see the [docker_open5gs README](https://github.com/herlesupreeth/docker_open5gs#readme).
 
