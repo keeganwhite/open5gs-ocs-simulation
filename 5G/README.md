@@ -8,12 +8,12 @@ Run it with docker:
 
 ```
 docker pull sigscale/ocs
-docker run -ti --entrypoint bash -h ocs.open5gs.local -v db:/home/otp/db sigscale/ocs
+docker run -ti--entrypoint bash -h ocs.open5gs.local -v db:/home/otp/db sigscale/ocs
 bin/initialize
 exit
-docker run -dti -h ocs.open5gs.local -v db:/home/otp/db -p 8080:8080/tcp \
-         -p 1812:1812/udp -p 1813:1813/udp -p 3868:3868/tcp \
-         -p 4161:4161/udp sigscale/ocs
+docker run -dti --name sigscale-ocs -h ocs.open5gs.local -v db:/home/otp/db \
+  -p 10001:8080/tcp -p 1812:1812/udp -p 1813:1813/udp -p 3868:3868/tcp \
+  -p 4161:4161/udp sigscale/ocs
 ```
 
 ## Open5GS Setup
@@ -43,7 +43,7 @@ ctf: enabled: yes # auto(default)|yes|no
 
 ## OCS Configuration
 
-1. docker exec -u 0 -it busy_dirac bash
+1. docker exec -u 0 -it stoic_morse bash
 2. apt update && apt install -y nano
 3. Edit releases/ocs-3.4.36/sys.config:
 
