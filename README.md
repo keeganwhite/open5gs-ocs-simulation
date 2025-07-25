@@ -1,53 +1,128 @@
-# Virtualized Open5GS Network with External Accounting Integration
+# Open5GS + SigScale OCS Integration Guide
 
-This repository provides resources and documentation for setting up a **virtualized Open5GS network** and linking it to an **external accounting system** (such as SigScale OCS). The primary focus is on 4G (EPC) integration, leveraging open-source tools to create a complete, testable LTE core and radio access network in a virtualized environment.
+This guide documents the steps to deploy an Open5GS core network with SigScale OCS for online charging, including how to configure the environment, add subscribers, and provision products for UEs.
 
-## Why 4G (EPC) and Not 5G?
+I have extracted the code from the [docker_open5gs](https://github.com/herlesupreeth/docker_open5gs) OCS branch and edited it a bit to make it work with the latest version of SigScale OCS.
 
-Attempts to integrate external online charging (OCS) with 5G (using UERANSIM and Open5GS 5GC) were unsuccessful. The likely reason is architectural:
-
-- **OCS is a component of the 4G EPC architecture** (Gy interface for online charging).
-- **5G uses a different charging architecture (CCS)**, and support for this in Open5GS is either incomplete or not yet implemented.
-- **UERANSIM is a 5G simulator** and does not natively support 4G/EPC charging flows.
-
-**Recommendation:** Use a 4G setup with srsRAN's eNodeB (eNB) and User Equipment (UE) to connect to Open5GS's MME and EPC. This enables full OCS integration and online charging.
-
-## Components Used
-
-- **Open5GS**: Open-source EPC (Evolved Packet Core) for LTE/4G.
-- **SigScale OCS**: External Online Charging System for real-time credit control.
-- **srsRAN 4G**: Open-source LTE radio suite (eNB and UE) for simulating RAN and UEs. See [srsRAN 4G Documentation](https://docs.srsran.com/projects/4g/en/latest/).
-- **UERANSIM**: Used for 5G testing, but not compatible with 4G OCS flows.
-
-## What This Repo Provides
-
-- **Step-by-step guides** for setting up Open5GS, SigScale OCS, and srsRAN 4G.
-- **Configuration examples** for all components.
-- **Debugging and validation tips** (e.g., using Wireshark/tcpdump to inspect Diameter Gy traffic).
-- **Troubleshooting advice** for common issues.
-
-## Directory Structure
-
-- `4G/` — Guides and configs for 4G/EPC integration (recommended approach).
-- `5G/` — Notes and configs for 5G attempts (not recommended for OCS integration).
-
-## Getting Started
-
-1. **5G**: I got the diameter protocol communication to start but could not get the accounting packets to be communicated. To get to this point follow the instructions in `5G/README.md`.
-2. **4G Recommended**: follow the instructions in `4G/README.md`.
-
-## Debugging & Validation
-
-- **Wireshark/tcpdump**: Capture and analyze Diameter Gy traffic (see `5G/wireshark.md`).
-- **Logs**: Check Open5GS and OCS logs for connection and charging events.
-- **srsRAN tools**: Use srsRAN's logging and debugging features to monitor eNB/UE behavior.
-
-## References
-
-- [srsRAN 4G Documentation](https://docs.srsran.com/projects/4g/en/latest/)
-- [Open5GS Documentation](https://open5gs.org/open5gs/docs/)
-- [SigScale OCS](https://hub.docker.com/r/sigscale/ocs)
+This depploys a **4G Core Network + IMS + SMS over SGs (uses Kamailio IMS)**.
 
 ---
 
-**Note:** This repository is a living document. Contributions and improvements are welcome, especially for new developments in 5G charging support in Open5GS.
+## Prerequisites
+
+- Docker and Docker Compose installed
+- Clone of this repository
+
+---
+
+## Changes
+
+### 1. Update OCS Section in `4g-volte-deploy.yaml`
+
+Ensure the OCS service is exposed for UI access and uses the correct network settings:
+
+```yaml
+ocs:
+  build: ./ocs
+  image: docker_ocs
+  container_name: ocs
+  env_file:
+    - .env
+  environment:
+    - COMPONENT_NAME=ocs
+  depends_on:
+    - smf
+  volumes:
+    - ./ocs:/mnt/ocs
+    - ocsdbdata:/home/otp/db
+    - /etc/timezone:/etc/timezone:ro
+    - /etc/localtime:/etc/localtime:ro
+  expose:
+    - "${OCS_BIND_PORT}/tcp"
+    - "${OCS_BIND_PORT}/sctp"
+    - "8083/tcp"
+  ports:
+    - "8083:8083/tcp"
+  networks:
+    default:
+      ipv4_address: ${OCS_IP}
+```
+
+### 2. Update the OCS Dockerfile
+
+Use the latest SigScale OCS image (with bug fixes):
+
+```dockerfile
+FROM sigscale/ocs:3.4.41-1
+```
+
+### 3. Configure the `.env` File
+
+Set your available IP addresses and UE credentials. Example UE section:
+
+```env
+UE1_IMEI=356938035643803
+UE1_IMEISV=4370816125816151
+UE1_IMSI=001011234567895
+UE1_KI=465B5CE8B199B49FAA5F0A2EE238A6BC
+UE1_OP=E8ED289DEBA952E4283B54E88E6183CA
+UE1_AMF=8000
+```
+
+> **Tip:** Make sure all IPs in `.env` are available and not in use by other services.
+
+---
+
+## Quickstart
+
+### 1. Pull requried images, tag then and start the Core Network
+
+```sh
+./build_and_tag.sh
+docker compose -f 4g-volte-deploy.yaml build
+docker compose -f 4g-volte-deploy.yaml up
+```
+
+Monitor logs for successful service startup.
+
+### 2. Add Subscribers and Products
+
+#### **A. Open5GS WebUI**
+
+- Access the Open5GS WebUI (usually at `http://<WEBUI_IP>:9999`).
+- Add a new subscriber with the IMSI and authentication details from your `.env`.
+- **Important:**
+  - Set the USIM Type to `OP` (not `OPc`).
+  - Enter the correct `KI` and `OP` values.
+
+#### **B. SigScale OCS UI**
+
+- Access the OCS UI at [http://<OCS_IP>:8083](http://<OCS_IP>:8083).
+- Add a new client/subscriber with the same IMSI.
+- Add a product and assign it to the subscriber.
+- Set the product's credit (e.g., bytes, cents, seconds) as needed. I had bytes and cents showing up and cents were a negative number and even though I had bytes I couldn't get it to work.
+
+## 3. Simulate RF client and radio
+
+`docker compose -f srsenb_zmq.yaml up -d && docker container attach srsenb_zmq`
+
+`docker compose -f srsue_zmq.yaml up -d && docker container attach srsue_zmq`
+
+## Tips & Troubleshooting
+
+- **USIM Type:**  
+  Always set to `OP` in Open5GS UI for Milenage authentication (not `OPc`).
+- **Credit Control:**  
+  Ensure the OCS product assigned to the subscriber has a positive balance in the relevant bucket (e.g., bytes, cents).
+- **Logs:**  
+  Check container logs for errors if attach or charging fails.
+- **Network:**  
+  Make sure all containers are on the same Docker network and can reach each other.
+
+---
+
+## References
+
+- [Open5GS Documentation](https://open5gs.org/open5gs/docs/)
+- [SigScale OCS Documentation](https://docs.sigscale.org/ocs/)
+- [srsRAN 4G User Manual](https://docs.srsran.com/projects/4g/en/latest/usermanuals/source/srsue/source/1_ue_intro.html#ue-intro)
