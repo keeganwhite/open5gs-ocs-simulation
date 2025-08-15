@@ -46,7 +46,7 @@ Monitor logs for successful service startup.
 - Access the Open5GS WebUI (usually at `http://<WEBUI_IP>:9999`).
 - Add a new subscriber with the IMSI and authentication details from your `.env`.
 - **Important:**
-  - Set the USIM Type to `OP` (not `OPc`).
+  - Set the USIM Type to `OP` (not `OPc`) when using a virtual UE.
   - Enter the correct `KI` and `OP` values.
 
 #### **B. SigScale OCS UI**
@@ -66,7 +66,7 @@ Run in different terminals:
 ## Tips & Troubleshooting
 
 - **USIM Type:**  
-  Always set to `OP` in Open5GS UI for Milenage authentication (not `OPc`).
+  Always set to `OP` in Open5GS UI for Milenage authentication (not `OPc`) when using a virtual UE.
 - **Credit Control:**  
   Ensure the OCS product assigned to the subscriber has a positive balance in the relevant bucket (e.g., bytes, cents).
 - **Logs:**  
